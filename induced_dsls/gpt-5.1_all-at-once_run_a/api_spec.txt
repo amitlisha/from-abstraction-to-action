@@ -1,0 +1,143 @@
+# ================================  API SPEC  ===============================
+# One entity per line; two-space indentation shows containment.
+# Inline '#' comments clarify hidden behaviour.
+# '# CRITICAL:' marks common pitfalls.
+
+Import: from hexagen import Game, Tile, WIDTH, HEIGHT, COLORS, DIRECTIONS
+
+Constant: WIDTH = 18
+Constant: HEIGHT = 10
+Constant: COLORS = ["white", "black", "yellow", "green", "red", "blue", "purple", "orange"]
+Constant: DIRECTIONS = ["up", "down", "up_right", "down_left", "up_left", "down_right"]
+
+# -------------------------------------------------------------------------------------
+Class: Game  # hexagonal board plus geometric utilities over colored tiles
+  # ── Construction & context ───────────────────────
+  Method: __init__(width:int=WIDTH, height:int=HEIGHT) -> Game  # create new empty board
+    Notes: Initializes a width×height grid with board_state filled with color index 0 ('white').
+  Method: start(width:int=WIDTH, height:int=HEIGHT) -> Game  # reset size and clear board; mutates
+    Notes: Sets width/height and replaces board_state with a new flat list of zeros of length width*height.
+    # CRITICAL: Any existing Tile objects for this Game keep their row/column but now reference the cleared/re-sized board.
+  Method: __enter__() -> Game  # context-manager entry
+    Notes: Pushes this Game onto the internal active-game stack so Tile() without game= binds to it.
+  Method: __exit__(exc_type, exc, tb) -> bool  # context-manager exit
+    Notes: Pops this Game from the active-game stack and propagates exceptions (returns False).
+
+  # ── Board rendering ──────────────────────────────
+  Method: plot(gold_boards=None, file_name:str|object|None=None, show:bool=True) -> object  # render current board (and optional gold/diff)
+    Param options: gold_boards ∈ list[int] ∪ list[list[int]] ∪ None
+    Notes: Returns a matplotlib-like Figure from hexagen.plot_board.plot_boards; saves to file_name if not None and optionally shows the figure.
+    # CRITICAL: Each board list must be length width*height with integer color indices compatible with COLORS, or plotting may fail.
+
+  # ── Pattern transforms & fills ───────────────────
+  Method: transform_pattern(tiles:list[Tile], anchor:Tile|tuple[int,int]|None=None, translation:tuple[int,int]=(0,0), mirror_axis:str|None=None, rotate_steps:int=0) -> list[Tile]  # rotate/mirror/translate a motif
+    Param options: mirror_axis ∈ {None,'vertical','horizontal','diag_up','diag_down'}
+    Notes: Applies rotation (rotate_steps·60° clockwise), optional mirroring about anchor, then (dr,dc) translation and returns new Tile objects on this Game; colors are not modified.
+    # CRITICAL: tiles must be Tile instances from this Game; anchor/translation use 1-based (row,col) coordinates, and any transformed positions outside 1..height×1..width are silently dropped.
+  Method: fill_region(seed:Tile|tuple[int,int], color:str|int, boundary_colors:set[str]|None=None) -> list[Tile]  # flood-fill region; auto-paints
+    Param options: color ∈ COLORS ∪ {0,…,len(COLORS)-1}; boundary_colors ∈ set(COLORS) ∪ {None}
+    Notes: Returns Tile objects for all filled cells in BFS order after recoloring them in board_state.
+    # CRITICAL: seed must be on-board and any Tile arguments must belong to this Game; with boundary_colors=None the fill stays within the seed’s original color, but with boundary_colors set it expands through all non-boundary colors (ignoring original color), and if the seed is itself a boundary color nothing is filled.
+
+  # ── Hex shapes & paths ───────────────────────────
+  Method: hex_triangle(apex:Tile|tuple[int,int], orientation:str, side:int, fill:bool=True) -> list[Tile]  # equilateral triangle on hex grid
+    Param options: orientation ∈ {'up','down','up_left','up_right','down_left','down_right'}
+    Notes: Builds an axis-aligned hex triangle of edge length side (side>0) with given apex and returns outline or filled tiles, clipped to the board.
+    # CRITICAL: apex may be a Tile from this Game or a (row,col) tuple (integers); off-board apex is allowed but only on-board tiles are returned.
+  Method: hex_ray(start:Tile|tuple[int,int], direction:str, length:int|None=None) -> list[Tile]  # straight ray in a hex direction
+    Param options: direction ∈ DIRECTIONS; length ∈ {0,1,2,…} ∪ {None}
+    Notes: Returns tiles from start stepping in direction; includes start when length is None or >0, and length=0 returns an empty list.
+    # CRITICAL: start must be on-board and any Tile must belong to this Game; the ray stops when it exits the board or reaches the requested length.
+  Method: hex_line(start:Tile|tuple[int,int], end:Tile|tuple[int,int]) -> list[Tile]  # straight segment between two hex cells
+    Notes: Uses hex interpolation/rounding to generate a straight hex path and returns unique on-board tiles between start and end (inclusive where within bounds).
+    # CRITICAL: start/end may be off-board and still define the geometry, but only tiles within 1..height×1..width are returned; Tile arguments must be from this Game.
+  Method: hex_ring(center:Tile|tuple[int,int], radius:int) -> list[Tile]  # tiles at exact hex distance
+    Notes: Returns all on-board tiles whose hex_distance to center equals radius, in row-major order.
+    # CRITICAL: radius must be an int ≥0; center may be off-board, but Tile arguments must belong to this Game.
+
+  # ── Distance / metrics ───────────────────────────
+  Method: hex_distance(a:Tile|tuple[int,int], b:Tile|tuple[int,int]) -> int  # hex-grid distance in steps
+    Notes: Computes the minimum number of hex steps between coordinates on an infinite odd-q vertical hex grid, ignoring board size.
+    # CRITICAL: Tile arguments must be created with this Game; raw (row,col) tuples are plain integer coordinates (no negative-index wrapping as in Tile(...)).
+
+  # ── Attributes ───────────────────────────────────
+  Property: width:int  # current board width (number of columns); valid on-board columns are 1..width
+  Property: height:int  # current board height (number of rows); valid on-board rows are 1..height
+  Property: board_state:list[int]  # flat row-major color indices of length width*height; index = (row-1)*width + (column-1)
+# -------------------------------------------------------------------------------------
+Class: Tile  # Single addressable hex cell bound to a Game
+
+  # ── Construction & identity ───────────────────────
+  Method: __init__(row:int, column:int, game:Game|None=None) -> Tile  # create a tile handle for (row, column)
+    Notes: Rows/columns are 1-based; negative values index from bottom/right (e.g. -1 = last row/col).
+    # CRITICAL: If game is None there must be an active Game context, otherwise a RuntimeError is raised.
+    # CRITICAL: 0 is not a valid board index; row/column=0 produce an off-board Tile.
+
+  # ── Queries ───────────────────────────────────────
+  Method: on_board() -> bool  # True if this tile lies within its Game board bounds
+  Property: color:str|None  # Current color name from COLORS, or None if off-board
+    # CRITICAL: Accessing color on a tile whose board_state index was set with an out-of-range int will raise via COLORS[...] later.
+
+  # ── Drawing / painting ───────────────────────────
+  Method: draw(color:str|int) -> Tile  # auto-paints this tile in the owning Game and returns self
+    Param options: color ∈ COLORS ∪ int
+    Notes: Off-board tiles are ignored but still returned unchanged.
+    # CRITICAL: When passing an int, you must ensure 0 ≤ color < len(COLORS) or later color access may fail.
+
+# -------------------------------------------------------------------------------------
+Snippet: Paint specific rows in given columns and render
+  game = Game(width=20, height=15)
+  with game:
+      for r in (1, 2, 3):
+          Tile(r, 1).draw('blue')
+      for r in range(1, 5):
+          Tile(r, 9).draw('orange')
+  game.plot(show=False)
+
+Note: Rows and columns are 1-based from the top-left, and Tile(...) without game= only works inside a with Game: context.
+
+
+Snippet: Connect two colored tiles with a straight hex diagonal
+  game = Game(20, 15)
+  with game:
+      a = Tile(1, 6).draw('blue')
+      b = Tile(4, 1).draw('blue')
+      for t in game.hex_line(a, b):
+          t.draw('blue')
+  game.plot()
+
+Note: hex_line returns new on-board Tile objects along the straight hex path (including endpoints), and you must iterate and draw on each to color the segment.
+
+
+Snippet: Draw a descending line ending near the bottom-right using negative indices
+  game = Game(20, 15)
+  with game:
+      start = Tile(3, 5).draw('green')
+      end = Tile(-1, -7).draw('green')
+      for t in game.hex_line(start, end):
+          t.draw('green')
+  game.plot()
+
+Note: Negative row/column values index from bottom/right (row=-1 is bottom row, column=-7 is seventh from the right), making it easy to specify endpoints relative to the board edges.
+
+
+Snippet: Central orange tile, red ring boundary, and outer blue fill
+  game = Game(15, 15)
+  with game:
+      for t in game.hex_ring(Tile(8, 8).draw('orange'), radius=1):
+          t.draw('red')
+      game.fill_region(seed=(1, 1), color='blue', boundary_colors={'red'})
+  game.plot()
+
+Note: When boundary_colors is provided, fill_region expands through all non-boundary colors (ignoring the seed’s original color) and stops at tiles whose color is in boundary_colors.
+
+
+Snippet: Build a triangular motif and place a rotated copy elsewhere
+  game = Game(20, 20)
+  with game:
+      motif = [t.draw('green') for t in game.hex_triangle(apex=(5, 5), orientation='down', side=3)]
+      for t in game.transform_pattern(motif, anchor=(5, 5), rotate_steps=1, translation=(0, 5)):
+          t.draw('green')
+  game.plot()
+
+Note: transform_pattern takes Tile objects from the same Game and uses 1-based (row, column) for anchor and translation; any transformed tiles that land off-board are silently omitted.

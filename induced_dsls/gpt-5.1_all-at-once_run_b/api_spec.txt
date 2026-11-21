@@ -1,0 +1,149 @@
+# ================================  API SPEC  ===============================
+# One entity per line; two-space indentation shows containment.
+# Inline '#' comments clarify hidden behaviour.
+# '# CRITICAL:' marks common pitfalls.
+
+Import: from hexagen import Game, Tile, WIDTH, HEIGHT, COLORS, DIRECTIONS
+
+Constant: WIDTH = 18
+Constant: HEIGHT = 10
+Constant: COLORS = ["white", "black", "yellow", "green", "red", "blue", "purple", "orange"]
+Constant: DIRECTIONS = ["up", "down", "up_right", "down_left", "up_left", "down_right"]
+
+# -------------------------------------------------------------------------------------
+Class: Game  # hex board state container and drawing utilities
+  # ── Construction & context ─────────────────────────
+  Method: __init__(width:int = WIDTH, height:int = HEIGHT) -> None  # create new game with given size
+    Notes: Calls start(width,height) to initialize board_state to all white.
+  Method: start(width:int = WIDTH, height:int = HEIGHT) -> Game  # mutates; reinitialize board size and colors
+    Notes: Sets width/height and resets board_state (all tiles become color index 0); returns self.
+    # CRITICAL: Calling start() discards all existing drawing on this Game.
+  Method: __enter__() -> Game  # mutates; push this Game as active for implicit Tile()
+    Notes: Used implicitly by with Game() as g: blocks; returns self.
+  Method: __exit__(exc_type:BaseException | None, exc:BaseException | None, tb:object | None) -> bool  # mutates; pop this Game from active stack
+    Notes: Normally only called by the with-statement; returns False so exceptions are not suppressed.
+
+  # ── Rendering / visualization ─────────────────────
+  Method: plot(gold_boards:object | None = None, file_name:str | None = None, show:bool = True) -> object  # render board using hexagen.plot_board
+    Notes: Returns the Figure-like object from hexagen.plot_board.plot_boards and optionally saves it to file_name.
+    # CRITICAL: gold_boards should encode board(s) using the same width×height layout as this Game or the comparison plot will be misleading.
+
+  # ── Painting / mutation operations ────────────────
+  Method: fill_interior(seed:Tile | tuple[int,int], color:str, boundary_colors:set[str] | None = None) -> list[Tile]  # auto-paints; flood-fill from seed
+    Param options: color ∈ COLORS; boundary_colors ⊆ COLORS or None
+    Notes: Returns the tiles that were recolored during the fill, in traversal order.
+    # CRITICAL: seed must be on-board and its Tile (if used) must belong to this Game; boundary_colors must be a set or None, and color must be in COLORS.
+  Method: copy_region(src_rows:range, src_columns:range, dest_offset:tuple[int,int], color_map:dict[str,str] | None = None, reflect:str = 'none') -> list[Tile]  # auto-paints; copy rectangular region
+    Param options: reflect ∈ {'none','vertical','horizontal'}; color_map keys,values ⊆ COLORS
+    Notes: Returns destination tiles written; tiles whose destinations fall off-board are skipped.
+    # CRITICAL: src_rows/src_columns must be range objects and dest_offset a 2-int tuple; color_map must be a dict with valid color names or None.
+  Method: mirror_horizontal(axis_row:int, rows:range | None = None, color_map:dict[str,str] | None = None) -> Game  # auto-paints; mirror rows across horizontal axis
+    Param options: color_map keys,values ⊆ COLORS
+    Notes: Copies colors from source rows to their mirrors across axis_row and overwrites the targets; returns self.
+    # CRITICAL: axis_row must be within 1..height; rows must be a range or None; this is a copy (not swap) and may overwrite existing drawings.
+  Method: mirror_vertical(axis_column:int, columns:range | None = None, color_map:dict[str,str] | None = None) -> Game  # auto-paints; mirror columns across vertical axis
+    Param options: color_map keys,values ⊆ COLORS
+    Notes: Copies colors from source columns to their mirrors across axis_column and overwrites the targets; returns self.
+    # CRITICAL: axis_column must be within 1..width; columns must be a range or None; this is a copy (not swap) and may overwrite existing drawings.
+
+  # ── Geometric construction (read-only) ────────────
+  Method: triangle(apex:Tile | tuple[int,int], direction:str, side:int, filled:bool = True) -> list[Tile]  # construct equilateral triangle of tiles
+    Param options: direction ∈ DIRECTIONS
+    Notes: Returns tiles on or inside the triangle; does not change any colors.
+    # CRITICAL: apex must be on-board and its Tile must belong to this Game; side must be ≥1.
+  Method: path(start:Tile | tuple[int,int], steps:list[str]) -> list[Tile]  # follow a sequence of hex directions
+    Param options: steps elements ∈ DIRECTIONS
+    Notes: Always includes the starting tile and stops before moving off-board.
+    # CRITICAL: steps must be a list of direction strings; start must be on-board and its Tile must belong to this Game.
+  Method: line_between(a:Tile | tuple[int,int], b:Tile | tuple[int,int]) -> list[Tile]  # straight hex line between two tiles
+    Notes: Returns all tiles from a to b inclusive along a single hex axis.
+    # CRITICAL: Both endpoints must be on-board, belong to this Game, and be collinear on a hex axis, otherwise ValueError is raised.
+  Method: ray(start:Tile | tuple[int,int], direction:str, length:int | None = None) -> list[Tile]  # straight ray in one direction
+    Param options: direction ∈ DIRECTIONS
+    Notes: Includes the starting tile and walks until the board edge or for length steps if provided.
+    # CRITICAL: length must be ≥0 or None; start must be on-board and its Tile must belong to this Game.
+  Method: ring(center:Tile | tuple[int,int], radius:int) -> list[Tile]  # tiles at exact hex distance from center
+    Notes: Returns on-board tiles whose hex-distance from center equals radius; center may be off-board if given as coordinates.
+    # CRITICAL: radius must be a non-negative int; Tile center, if used, must belong to this Game.
+
+  # ── Attributes ────────────────────────────────────
+  Property: width:int  # number of columns in the board
+  Property: height:int  # number of rows in the board
+  Property: board_state:list[int]  # flattened row-major color indices into COLORS (size == width*height)
+# -------------------------------------------------------------------------------------
+Class: Tile  # Single addressable cell on a hex Game board
+  # ── Construction ─────────────────────────
+  Method: __init__(row:int, column:int, game:Game|None=None) -> Tile  # create a tile bound to a Game
+    Notes: row/column are 1-based from top-left; negative values index from bottom/right (e.g. -1 is last row/column).
+    # CRITICAL: If game is None there must be an active Game context (`with Game() as g:`) or construction raises RuntimeError.
+
+  # ── State / queries ──────────────────────
+  Method: on_board() -> bool  # True if this tile lies within its Game's board bounds
+  Property: color:str|None  # current color name, or None if the tile is off-board
+    # CRITICAL: Accessing color on a tile whose stored color_id is invalid for COLORS will raise via indexing; only draw valid color_ids.
+
+  # ── Drawing / painting ───────────────────
+  Method: draw(color:str|int) -> Tile  # auto-paints this tile in its Game and returns self
+    Param options: color ∈ COLORS ∪ {0,…,len(COLORS)-1}
+    Notes: Off-board tiles are left unchanged and self is still returned.
+    # CRITICAL: color strings must be members of COLORS and int ids must be in range(len(COLORS)) or later color access may fail.
+
+  # ── Neighborhood / topology ──────────────
+  Method: neighbors() -> list[Tile]  # hex-adjacent tiles (distance 1) on the same Game
+    Notes: Returns up to 6 neighbors; off-board tiles return an empty list.
+    # CRITICAL: Requires this Tile to hold a valid Game reference; manually clearing Tile.game will cause RuntimeError here.
+
+# -------------------------------------------------------------------------------------
+Snippet: Vertical line in a column and rendering with a Game context
+  with Game(20, 20) as g:
+      top = Tile(1, 6)
+      bottom = Tile(g.height, 6)
+      top.draw("blue")
+      bottom.draw("blue")
+      for t in g.line_between(top, bottom):
+          t.draw("blue")
+      g.plot()
+
+Note: Rows and columns are 1-based (row, column), and using `with Game(...) as g:` makes that Game the implicit context for `Tile(row, column)` and for rendering via `g.plot()`.
+
+
+Snippet: Mixing top-based and bottom-based indexing in a single column
+  g = Game(10, 10)
+  for row in range(1, 4):
+      Tile(row, 1, game=g).draw("blue")
+  for row in range(-4, -1):
+      Tile(row, 1, game=g).draw("blue")
+  g.plot()
+
+Note: Negative row/column indices count from bottom/right (e.g., -1 is last row/column), so you can target “from top” and “from bottom” positions in the same loop logic.
+
+
+Snippet: Coloring a center tile, its surrounding ring, and filling inside a boundary
+  with Game(9, 9) as g:
+      center = Tile(5, 5)
+      center.draw("orange")
+      for t in g.ring(center, 1):
+          t.draw("red")
+      g.fill_interior(center, "orange", boundary_colors={"red"})
+      g.plot()
+
+Note: `fill_interior` takes a seed tile or coordinate and a `set` of boundary color names (or `None`), recoloring the seed and all reachable tiles whose colors are not in that boundary set.
+
+
+Snippet: Copying a colored segment, remapping colors, then mirroring horizontally and vertically
+  g = Game(20, 20)
+  for r in range(1, 5):
+      Tile(r, 9, game=g).draw("orange")
+  g.copy_region(range(1, 5), range(9, 10), dest_offset=(0, 5), color_map={"orange": "green"})
+  g.mirror_horizontal(axis_row=10).mirror_vertical(axis_column=10)
+  g.plot()
+
+Note: `copy_region` requires `range` objects for rows/columns and a `(row_offset, column_offset)` tuple, and the mirror methods copy (not swap) colors across the specified 1-based axis, optionally remapping colors via `color_map` during the copy.
+
+
+Snippet: Resetting a board’s size and clearing all existing drawing
+  g = Game(10, 10)
+  Tile(1, 1, game=g).draw("red")
+  g.start(5, 5).plot()
+
+Note: Calling `start(width, height)` on a `Game` immediately discards all existing colors, resizes the board, and then returns the same `Game` for further chaining.

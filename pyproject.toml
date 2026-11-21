@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hexagen"
+version = "1.0.0"
+description = "From Abstraction to Action: DSLs for natural-language abstraction interpretation and execution"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = [
+    "numpy",
+    "matplotlib",
+    "openai",
+    "google-genai",
+    "tenacity",
+]
+
+[project.optional-dependencies]
+# Gemini Batch API through Vertex AI (uploads requests to GCS)
+vertex-batch = ["google-cloud-storage"]
+# Semantic-batching variant of DSL induction
+induction = ["sentence-transformers", "scikit-learn"]
+# Text2CAD experiment
+text2cad = ["cadquery", "scipy"]
+
+[tool.setuptools]
+packages = ["hexagen", "constants"]

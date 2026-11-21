@@ -1,0 +1,8 @@
+##### CONTEXT (completed instructions so far)
+{HISTORY_BLOCK}
+
+##### CURRENT SCRIPT
+```python
+{CODE_SO_FAR}
+{NEXT_STEP}
+```

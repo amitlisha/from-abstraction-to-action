@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.egg-info/
+.DS_Store
+.cache/
+results-*/
+generated_libs/
+_compare_cache*/
+compare-*.json
+data/CQ/
+data/text2cad_v1.1/
