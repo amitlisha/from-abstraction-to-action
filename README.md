@@ -1,6 +1,8 @@
 # From Abstraction to Action
 
-Code, data and DSLs for **"From Abstraction to Action: DSLs for Natural Language Abstraction Interpretation and Execution"** (Amit Lisha and Reut Tsarfaty).
+Code, data and DSLs for **[From Abstraction to Action: DSLs for Natural Language Abstraction Interpretation and Execution](https://arxiv.org/abs/2610.28311)** (Amit Lisha and Reut Tsarfaty).
+
+📄 Paper: [arXiv:2610.28311](https://arxiv.org/abs/2610.28311)
 
 | Path | What it is |
 |---|---|
@@ -99,8 +101,11 @@ python cadquery_exp/cq_compare.py --run-a results-<direct-run> --run-b results-<
 
 ```bibtex
 @misc{lisha2026abstraction,
-  title  = {From Abstraction to Action: DSLs for Natural Language Abstraction Interpretation and Execution},
-  author = {Lisha, Amit and Tsarfaty, Reut},
-  year   = {2026}
+  title         = {From Abstraction to Action: DSLs for Natural Language Abstraction Interpretation and Execution},
+  author        = {Lisha, Amit and Tsarfaty, Reut},
+  year          = {2026},
+  eprint        = {2610.28311},
+  archivePrefix = {arXiv},
+  url           = {https://arxiv.org/abs/2610.28311}
 }
 ```
