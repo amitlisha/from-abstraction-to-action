@@ -2,7 +2,7 @@
 
 Code, data and DSLs for **[From Abstraction to Action: DSLs for Natural Language Abstraction Interpretation and Execution](https://arxiv.org/abs/2610.28311)** (Amit Lisha and Reut Tsarfaty).
 
-📄 Paper: [arXiv:2610.28311](https://arxiv.org/abs/2610.28311)
+**Accepted to the EACL 2027 Main Conference.** 📄 Paper: [arXiv:2610.28311](https://arxiv.org/abs/2610.28311)
 
 | Path | What it is |
 |---|---|
@@ -100,10 +100,11 @@ python cadquery_exp/cq_compare.py --run-a results-<direct-run> --run-b results-<
 ## Citation
 
 ```bibtex
-@misc{lisha2026abstraction,
+@inproceedings{lisha2027abstraction,
   title         = {From Abstraction to Action: DSLs for Natural Language Abstraction Interpretation and Execution},
   author        = {Lisha, Amit and Tsarfaty, Reut},
-  year          = {2026},
+  booktitle     = {Proceedings of the 2027 Conference of the European Chapter of the Association for Computational Linguistics (EACL)},
+  year          = {2027},
   eprint        = {2610.28311},
   archivePrefix = {arXiv},
   url           = {https://arxiv.org/abs/2610.28311}
